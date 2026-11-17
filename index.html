@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>鳥獣目撃・痕跡クイック共有（LIFF版）</title>
+  <!-- 常に最新のLIFF SDKを読み込む -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    :root {
+      --primary: #2e7d32;
+      --bg: #f4f6f4;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --bear: #c62828;
+      --deer: #ef6c00;
+      --boar: #5d4037;
+      --trace: #1565c0;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    header {
+      background: #1b4332;
+      color: #fff;
+      padding: 14px 16px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      letter-spacing: 0.03em;
+    }
+
+    .user-badge {
+      font-size: 0.78rem;
+      color: #d8f3dc;
+      margin-top: 2px;
+    }
+
+    main {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 14px;
+      padding-bottom: 40px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* 鳥獣選択グリッド */
+    .target-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .target-btn {
+      border: 2px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .target-btn .emoji {
+      font-size: 2rem;
+      line-height: 1.1;
+    }
+
+    .target-btn .label {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .target-btn .sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .target-btn.active[data-type="bear"] {
+      border-color: var(--bear);
+      background: #ffebee;
+      color: var(--bear);
+    }
+    .target-btn.active[data-type="deer"] {
+      border-color: var(--deer);
+      background: #fff3e0;
+      color: var(--deer);
+    }
+    .target-btn.active[data-type="boar"] {
+      border-color: var(--boar);
+      background: #efebe9;
+      color: var(--boar);
+    }
+    .target-btn.active[data-type="trace"] {
+      border-color: var(--trace);
+      background: #e3f2fd;
+      color: var(--trace);
+    }
+
+    /* クイックタグ */
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .tag-chip {
+      background: #eef2ef;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 0.8rem;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .tag-chip:active {
+      background: #cbd5e1;
+    }
+
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 68px;
+    }
+
+    /* GPS表示エリア */
+    .gps-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+    }
+
+    .gps-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .gps-coords {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .btn-small {
+      background: #fff;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: #334155;
+    }
+
+    .map-check-link {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #1565c0;
+      text-decoration: underline;
+    }
+
+    /* 送信ボタン */
+    .send-btn {
+      width: 100%;
+      background: #06c755; /* LINEグリーン */
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(6, 199, 85, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .send-btn:disabled {
+      background: #9ca3af;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    .status-banner {
+      font-size: 0.78rem;
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      display: none;
+    }
+
+    /* プレビューモーダル */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: #fff;
+      border-radius: 12px;
+      max-width: 420px;
+      width: 100%;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    .preview-bubble {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+      font-size: 0.85rem;
+    }
+
+    .preview-header {
+      padding: 10px 12px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .preview-body {
+      padding: 12px;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌲 鳥獣目撃・痕跡クイック共有</h1>
+  <div class="user-badge" id="user-display">報告者: 取得中...</div>
+</header>
+
+<main>
+  <div id="mode-banner" class="status-banner"></div>
+
+  <!-- 1. 対象選択 -->
+  <div class="card">
+    <div class="section-title">1. 目撃・発見した対象を選択</div>
+    <div class="target-grid" id="target-grid">
+      <button type="button" class="target-btn active" data-type="bear">
+        <span class="emoji">🐻</span>
+        <span class="label">クマ（警戒）</span>
+        <span class="sub">成獣・親子・目撃</span>
+      </button>
+      <button type="button" class="target-btn" data-type="deer">
+        <span class="emoji">🦌</span>
+        <span class="label">ニホンジカ</span>
+        <span class="sub">群れ・単独・食害</span>
+      </button>
+      <button type="button" class="target-btn" data-type="boar">
+        <span class="emoji">🐗</span>
+        <span class="label">イノシシ</span>
+        <span class="sub">目撃・掘り起こし</span>
+      </button>
+      <button type="button" class="target-btn" data-type="trace">
+        <span class="emoji">👣</span>
+        <span class="label">痕跡・被害</span>
+        <span class="sub">足跡・フン・剥皮</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. 状況メモ -->
+  <div class="card">
+    <div class="section-title">
+      <span>2. 状況メモ（任意）</span>
+      <button type="button" class="btn-small" id="clear-memo">クリア</button>
+    </div>
+    <div class="tag-list">
+      <span class="tag-chip" data-text="1頭確認">＋1頭確認</span>
+      <span class="tag-chip" data-text="親子連れ">＋親子連れ</span>
+      <span class="tag-chip" data-text="複数頭">＋複数頭</span>
+      <span class="tag-chip" data-text="林道を横断">＋林道を横断</span>
+      <span class="tag-chip" data-text="作業地付近">＋作業地付近</span>
+      <span class="tag-chip" data-text="新しい足跡・フン">＋新しい足跡・フン</span>
+      <span class="tag-chip" data-text="樹皮剥ぎ被害">＋樹皮剥ぎ被害</span>
+    </div>
+    <textarea id="memo-input" placeholder="移動方向や頭数など（例：北側斜面へ移動）"></textarea>
+  </div>
+
+  <!-- 3. 現在地GPS -->
+  <div class="card">
+    <div class="section-title">
+      <span>3. 発見地点のGPS座標</span>
+      <button type="button" class="btn-small" id="refresh-gps">再測位</button>
+    </div>
+    <div class="gps-box">
+      <div class="gps-row">
+        <span>ステータス:</span>
+        <strong id="gps-status">測位中...</strong>
+      </div>
+      <div class="gps-row">
+        <span>緯度 / 経度:</span>
+        <span class="gps-coords" id="gps-coords">--- , ---</span>
+      </div>
+      <div class="gps-row">
+        <span>測位誤差:</span>
+        <span id="gps-acc">---</span>
+      </div>
+      <a id="map-link" class="map-check-link" href="#" target="_blank" rel="noopener" style="display:none;">
+        📍 Googleマップで現在地を確認する
+      </a>
+    </div>
+  </div>
+
+  <!-- 送信ボタン -->
+  <button type="button" class="send-btn" id="send-btn" disabled>
+    <span>LINEグループへ警告カードと地図を送信</span>
+  </button>
+</main>
+
+<!-- テストプレビュー用モーダル（LIFF ID未設定時に動作） -->
+<div class="modal-backdrop" id="preview-modal">
+  <div class="modal-card">
+    <div style="font-weight:700; font-size:1rem;">📱 送信プレビュー（テストモード）</div>
+    <p style="font-size:0.8rem; color:#4b5563; margin:6px 0;">
+      LIFF IDが未設定のためプレビューを表示しています。本番ではLINEの送信先選択画面が開き、以下のカードと地図ピンが投稿されます。
+    </p>
+    <div class="preview-bubble">
+      <div class="preview-header" id="pv-header">⚠️ クマ目撃・警戒情報</div>
+      <div class="preview-body" id="pv-body"></div>
+    </div>
+    <button type="button" class="btn-small" style="width:100%; padding:10px; font-weight:700;" onclick="document.getElementById('preview-modal').style.display='none'">閉じる</button>
+  </div>
+</div>
+
+<script>
+  // =========================================================
+  // ★ LINE Developersで発行したLIFF IDをここに貼り付けます
+  // =========================================================
+  const LIFF_ID = "YOUR_LIFF_ID";
+
+  // 対象種別マスタ
+  const TARGET_CONFIG = {
+    bear:  { name: "クマ（警戒）",   emoji: "🐻", color: "#C62828", title: "⚠️ クマ目撃・警戒情報" },
+    deer:  { name: "ニホンジカ",     emoji: "🦌", color: "#EF6C00", title: "🦌 ニホンジカ目撃情報" },
+    boar:  { name: "イノシシ",       emoji: "🐗", color: "#5D4037", title: "🐗 イノシシ目撃情報" },
+    trace: { name: "鳥獣痕跡・被害", emoji: "👣", color: "#1565C0", title: "👣 鳥獣痕跡・食害情報" }
+  };
+
+  let selectedType = "bear";
+  let currentCoords = null; // { lat, lng, acc }
+  let reporterName = "現場作業員";
+  let isLiffReady = false;
+
+  // 初期化処理
+  window.addEventListener("DOMContentLoaded", async () => {
+    setupUIEvents();
+    startGPS();
+    await initLiffApp();
+  });
+
+  // UIイベント設定
+  function setupUIEvents() {
+    // 鳥獣ボタン切り替え
+    document.querySelectorAll(".target-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".target-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        selectedType = btn.dataset.type;
+      });
+    });
+
+    // クイックタグ追記
+    const memoInput = document.getElementById("memo-input");
+    document.querySelectorAll(".tag-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        const text = chip.dataset.text;
+        memoInput.value = memoInput.value ? `${memoInput.value}、${text}` : text;
+      });
+    });
+
+    document.getElementById("clear-memo").addEventListener("click", () => {
+      memoInput.value = "";
+    });
+
+    document.getElementById("refresh-gps").addEventListener("click", startGPS);
+    document.getElementById("send-btn").addEventListener("click", handleSend);
+  }
+
+  // LIFF初期化
+  async function initLiffApp() {
+    const banner = document.getElementById("mode-banner");
+    const userDisplay = document.getElementById("user-display");
+
+    if (!LIFF_ID || LIFF_ID === "YOUR_LIFF_ID") {
+      banner.style.display = "block";
+      banner.textContent = "💡 テストモード動作中：LIFF_IDを設定するとLINEグループへ直接送信できます。";
+      userDisplay.textContent = "報告者: テストユーザー（未連携）";
+      return;
+    }
+
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      isLiffReady = true;
+
+      if (!liff.isLoggedIn()) {
+        // 外部ブラウザで開かれた場合はLINEログインを促す
+        liff.login();
+        return;
+      }
+
+      const profile = await liff.getProfile();
+      reporterName = profile.displayName;
+      userDisplay.textContent = `報告者: ${reporterName}`;
+    } catch (err) {
+      console.error("LIFF初期化失敗:", err);
+      banner.style.display = "block";
+      banner.textContent = "⚠️ LIFF初期化エラー: " + err.message;
+      userDisplay.textContent = "報告者: 現場作業員（オフライン/エラー）";
+    }
+  }
+
+  // GPS測位
+  function startGPS() {
+    const statusEl = document.getElementById("gps-status");
+    const coordsEl = document.getElementById("gps-coords");
+    const accEl = document.getElementById("gps-acc");
+    const mapLink = document.getElementById("map-link");
+    const sendBtn = document.getElementById("send-btn");
+
+    if (!("geolocation" in navigator)) {
+      statusEl.textContent = "GPS非対応端末";
+      return;
+    }
+
+    statusEl.textContent = "衛星捕捉中...";
+    statusEl.style.color = "#d97706";
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const acc = Math.round(pos.coords.accuracy);
+
+        currentCoords = { lat, lng, acc };
+        statusEl.textContent = "測位完了";
+        statusEl.style.color = "#15803d";
+        coordsEl.textContent = `${lat}, ${lng}`;
+        accEl.textContent = `約 ±${acc} m`;
+
+        mapLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
+        mapLink.style.display = "inline-block";
+        sendBtn.disabled = false;
+      },
+      (err) => {
+        statusEl.textContent = "測位失敗（位置情報許可を確認）";
+        statusEl.style.color = "#dc2626";
+        console.warn("GPS Error:", err);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  }
+
+  // 送信処理（Flex Message + Location Message の2本立て）
+  async function handleSend() {
+    if (!currentCoords) {
+      alert("現在地のGPSがまだ取得できていません。");
+      return;
+    }
+
+    const cfg = TARGET_CONFIG[selectedType];
+    const memoRaw = document.getElementById("memo-input").value.trim();
+    const memoText = memoRaw || "特記事項なし";
+    const nowStr = new Date().toLocaleString("ja-JP", {
+      month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+    });
+    const mapUrl = `https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`;
+
+    // LIFF未設定時のテストプレビュー
+    if (!isLiffReady) {
+      document.getElementById("pv-header").style.backgroundColor = cfg.color;
+      document.getElementById("pv-header").textContent = cfg.title;
+      document.getElementById("pv-body").innerHTML = `
+        <div><strong>種別：</strong>${cfg.emoji} ${cfg.name}</div>
+        <div><strong>状況：</strong>${memoText}</div>
+        <div><strong>日時：</strong>${nowStr}</div>
+        <div><strong>報告：</strong>${reporterName}</div>
+        <div><strong>座標：</strong>${currentCoords.lat}, ${currentCoords.lng} (±${currentCoords.acc}m)</div>
+        <div style="margin-top:6px; color:#1565c0;">＋ LINE標準の地図ピンも同時送信されます</div>
+      `;
+      document.getElementById("preview-modal").style.display = "flex";
+      return;
+    }
+
+    // LINE送信用のメッセージ配列（1.警告カード / 2.地図ピン）
+    const messages = [
+      {
+        type: "flex",
+        altText: `${cfg.title}（${reporterName}）`,
+        contents: {
+          type: "bubble",
+          size: "kilo",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: cfg.color,
+            paddingAll: "12px",
+            contents: [
+              {
+                type: "text",
+                text: cfg.title,
+                color: "#FFFFFF",
+                weight: "bold",
+                size: "md"
+              }
+            ]
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "text",
+                text: `${cfg.emoji} ${cfg.name}`,
+                weight: "bold",
+                size: "lg",
+                color: "#111827"
+              },
+              {
+                type: "text",
+                text: `状況: ${memoText}`,
+                wrap: true,
+                size: "sm",
+                color: "#374151"
+              },
+              {
+                type: "separator",
+                margin: "md"
+              },
+              {
+                type: "text",
+                text: `日時: ${nowStr} / 報告: ${reporterName}`,
+                size: "xs",
+                color: "#6B7280",
+                margin: "md"
+              },
+              {
+                type: "text",
+                text: `座標: ${currentCoords.lat}, ${currentCoords.lng} (±${currentCoords.acc}m)`,
+                size: "xs",
+                color: "#6B7280"
+              }
+            ]
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "button",
+                style: "primary",
+                color: cfg.color,
+                height: "sm",
+                action: {
+                  type: "uri",
+                  label: "Googleマップで場所を開く",
+                  uri: mapUrl
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        type: "location",
+        title: `${cfg.emoji} ${cfg.name}（${reporterName}）`.slice(0, 90),
+        address: `緯度:${currentCoords.lat}, 経度:${currentCoords.lng} (${memoText})`.slice(0, 90),
+        latitude: currentCoords.lat,
+        longitude: currentCoords.lng
+      }
+    ];
+
+    try {
+      if (!liff.isApiAvailable("shareTargetPicker")) {
+        alert("この環境では送信先選択機能（shareTargetPicker）が利用できません。LINE Developersで有効化されているか確認してください。");
+        return;
+      }
+
+      const res = await liff.shareTargetPicker(messages);
+      if (res) {
+        alert("LINEグループへ目撃情報を共有しました！");
+        if (liff.isInClient()) {
+          liff.closeWindow();
+        }
+      }
+    } catch (err) {
+      console.error("送信エラー:", err);
+      alert("送信に失敗しました: " + err.message);
+    }
+  }
+</script>
+</body>
+</html>
